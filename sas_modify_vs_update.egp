@@ -1,7 +1,7 @@
 
 %let n_row = 1e4;
 
- 
+
 
 data addinv;
 
@@ -17,8 +17,8 @@ drop i;
 
 run;
 
- 
 
+ 
 data stock;
 
 format RECDATE yymmddn8.;
@@ -61,17 +61,15 @@ run;
 
 %macro measure(it = 3);
 
- 
-
 data stock;
 
 set stock_orig;
 
- 
+run;
 
+ 
 %let start = %sysfunc(datetime());
 
- 
 
 data stock;
 
@@ -93,12 +91,11 @@ run;
 
 %let update_modify_diff = %sysevalf(&end. - &start.);
 
- 
+
 
 %let start = %sysfunc(datetime());
 
  
-
 proc sql;
 
 update stock
@@ -153,15 +150,12 @@ run;
 
 %mend measure;
 
- 
 
 *%measure(1);
 
  
 
 %macro invoke_measure(to);
-
- 
 
 data time;
 
