@@ -1,0 +1,224 @@
+
+%let n_row = 1e4;
+
+ 
+
+data addinv;
+
+length PARTNO $20.;
+
+Do i = 1 to &n_row.;
+
+PARTNO = compress('ABCDEF-'||i); NWSTOCK = round(rand("Uniform") * 100); output;
+
+End;
+
+drop i;
+
+run;
+
+ 
+
+data stock;
+
+format RECDATE yymmddn8.;
+
+length PARTNO $20.;
+
+array DESC {*} $ 20 DESC1-DESC10 ('seal','sander','filter','brace','clamp','valve','cutter','rod','switch','timer');
+
+Do i = 1 to &n_row.;
+
+PARTNO = compress('ABCDEF-'||i);
+
+INSTOCK = round(rand("Uniform") * 100);
+
+PRICE = max(1, INSTOCK - 20);
+
+r = round( 1 + (10 - 1) * rand("Uniform") );
+
+DESCRIPTION = DESC{r};
+
+RECDATE = 20210;
+
+output;
+
+End;
+
+drop DESC1-DESC10 i r;
+
+run;
+
+ 
+
+data stock_orig;
+
+set stock;
+
+run;
+
+ 
+
+%macro measure(it = 3);
+
+ 
+
+data stock;
+
+set stock_orig;
+
+ 
+
+%let start = %sysfunc(datetime());
+
+ 
+
+data stock;
+
+   modify stock addinv;
+
+   by partno;
+
+   RECDATE=today();
+
+   INSTOCK=instock+nwstock;
+
+   if _iorc_=0 then replace;
+
+run;
+
+ 
+
+%let end = %sysfunc(datetime());
+
+%let update_modify_diff = %sysevalf(&end. - &start.);
+
+ 
+
+%let start = %sysfunc(datetime());
+
+ 
+
+proc sql;
+
+update stock
+
+   set INSTOCK = INSTOCK + (select NWSTOCK
+
+                                        from addinv
+
+                                        where stock.PARTNO = addinv.PARTNO)
+
+;
+
+quit;
+
+ 
+
+%let end = %sysfunc(datetime());
+
+%let update_sql_diff = %sysevalf(&end. - &start.);
+
+ 
+
+data time_i;
+
+length it 8.;
+
+length type_run $20.;
+
+length n_records 8.;
+
+length diff 8.;
+
+ 
+
+it = &it.; type_run = 'modify'; n_records = &n_row.; diff = &update_modify_diff.; output;
+
+it = &it.; type_run = 'sql'; n_records = &n_row.; diff = &update_sql_diff.; output;
+
+ 
+
+run;
+
+ 
+
+proc append base=time
+
+                data=time_i;
+
+run;
+
+ 
+
+%mend measure;
+
+ 
+
+*%measure(1);
+
+ 
+
+%macro invoke_measure(to);
+
+ 
+
+data time;
+
+length it 8.;
+
+length type_run $20.;
+
+length n_records 8.;
+
+length diff 8.;
+
+delete;
+
+run;
+
+ 
+
+%Do l = 1 %to &to.;
+
+     %put it = &l., start = %sysfunc(putn(%sysfunc(datetime()),datetime19.));
+
+     %measure(it = &l.);
+
+%End;
+
+ 
+
+proc summary data=time nway missing;
+
+class type_run;
+
+var diff;
+
+output out=time_grp(drop= _TYPE_ _FREQ_) mean(diff)=mean_diff stddev(diff)=sd_diff;
+
+run;
+
+ 
+
+proc print data=time;
+
+title 'Result';
+
+run;
+
+ 
+
+proc print data=time_grp;
+
+title 'Stats on result';
+
+run;
+
+ 
+
+%mend invoke_measure;
+
+ 
+
+%invoke_measure(to = 5);
